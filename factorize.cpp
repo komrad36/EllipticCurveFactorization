@@ -13,6 +13,8 @@
 
 #include "factorize.h"
 
+#pragma comment(lib, "mpir.lib")
+
 using I32 = int32_t;
 using I64 = int64_t;
 using U32 = uint32_t;
@@ -50,7 +52,7 @@ static constexpr U32 kSmallPrimes[] =
     9743,9749,9767,9769,9781,9787,9791,9803,9811,9817,9829,9833,9839,9851,9857,9859,9871,9883,9887,9901,9907,9923,9929,9931,9941,9949,9967,9973
 };
 
-//#define ENABLE_ASSERTS
+ #define ENABLE_ASSERTS
 
 #if defined(ENABLE_ASSERTS)
 #include <cstdio>
@@ -162,7 +164,8 @@ public:
         mpz_init(m_r2);
         mpz_init(m_r3);
         mpz_init(m_scratch);
-        m_p = mpz_sizeinbase(n, 2);
+        mpz_init(m_scratch2);
+        m_p = (mpz_sizeinbase(n, 2) + 63) & ~63ULL;
         mpz_setbit(m_scratch, m_p);
         mpz_gcdext(m_r3, m_r2, m_nPrime, m_scratch, n);
         mpz_neg(m_nPrime, m_nPrime);
@@ -184,6 +187,7 @@ public:
         mpz_clear(m_r2);
         mpz_clear(m_r3);
         mpz_clear(m_scratch);
+        mpz_clear(m_scratch2);
     }
 
     void Add(Mont& r, const Mont& x, const Mont& y) const
@@ -247,11 +251,11 @@ private:
     inline void REDC(mpz_ptr r, mpz_srcptr T) const
     {
         mpz_mod_2exp(m_scratch, T, m_p);
-        mpz_mul(m_scratch, m_scratch, m_nPrime);
-        mpz_mod_2exp(m_scratch, m_scratch, m_p);
-        mpz_mul(m_scratch, m_scratch, m_n);
-        mpz_add(r, m_scratch, T);
-        mpz_div_2exp(r, r, m_p);
+        mpz_mul(m_scratch2, m_scratch, m_nPrime);
+        mpz_mod_2exp(m_scratch2, m_scratch2, m_p);
+        mpz_mul(m_scratch, m_scratch2, m_n);
+        mpz_add(m_scratch, m_scratch, T);
+        mpz_div_2exp(r, m_scratch, m_p);
         if (mpz_cmp(r, m_n) >= 0)
             mpz_sub(r, r, m_n);
     }
@@ -262,6 +266,7 @@ private:
     mpz_t m_r2;
     mpz_t m_r3;
     mutable mpz_t m_scratch;
+    mutable mpz_t m_scratch2;
     U64 m_p;
 };
 
@@ -1059,21 +1064,21 @@ static void EcAdd(const MontgomerySystem& ms, Mont& x3, Mont& z3, Mont& S1, Mont
     x3.DeepCopyFrom(S3);
 }
 
-static void EcAddMove(const MontgomerySystem& ms, Mont& x3, Mont& z3, Mont& S1, Mont& S2,
+static void EcAddMove(const MontgomerySystem& ms, Mont& x3, Mont& z3, Mont& S1, Mont& S2, Mont& S3, Mont& S4,
     const Mont& x2, const Mont& z2, const Mont& x1, const Mont& z1, const Mont& x, const Mont& z)
 {
-    ms.Sub(S1, x2, z2);
+    ms.Sub(S3, x2, z2);
     ms.Add(S2, x1, z1);
-    ms.Mul(S1, S1, S2);
+    ms.Mul(S1, S3, S2);
     ms.Sub(S2, x1, z1);
     ms.Add(x3, x2, z2);
-    ms.Mul(S2, S2, x3);
-    ms.Add(x3, S1, S2);
-    ms.Sqr(x3, x3);
-    ms.Mul(x3, x3, z);
-    ms.Sub(z3, S1, S2);
-    ms.Sqr(z3, z3);
-    ms.Mul(z3, z3, x);
+    ms.Mul(S3, S2, x3);
+    ms.Add(x3, S1, S3);
+    ms.Sqr(S4, x3);
+    ms.Mul(x3, S4, z);
+    ms.Sub(S1, S1, S3);
+    ms.Sqr(S4, S1);
+    ms.Mul(z3, S4, x);
 }
 
 static void EcMul(const MontgomerySystem& ms, Mont& x2, Mont& z2, Mont& S1, Mont& S2,
@@ -1214,51 +1219,51 @@ static void EcPrac(const MontgomerySystem& ms, U32 i, Mont& S1, Mont& S2, Mont& 
             const U32 t = ((d << 1) - e) / 3;
             e = ((e << 1) - d) / 3;
             d = t;
-            EcAddMove(ms, S1, S2, S3, S4, xA, zA, xB, zB, xC, zC);
-            EcAddMove(ms, S3, S4, S5, S6, S1, S2, xA, zA, xB, zB);
-            EcAddMove(ms, xB, zB, S5, S6, xB, zB, S1, S2, xA, zA);
+            EcAddMove(ms, S1, S2, S3, S4, S5, S6, xA, zA, xB, zB, xC, zC);
+            EcAddMove(ms, S3, S4, S5, S6, S7, S8, S1, S2, xA, zA, xB, zB);
+            EcAddMove(ms, xB, zB, S5, S6, S7, S8, xB, zB, S1, S2, xA, zA);
             Swap(xA, S3);
             Swap(zA, S4);
         }
         else if ((d << 2) <= 5 * e && !((d - e) % 6))
         {
             d = (d - e) >> 1;
-            EcAddMove(ms, xB, zB, S5, S6, xA, zA, xB, zB, xC, zC);
+            EcAddMove(ms, xB, zB, S5, S6, S7, S8, xA, zA, xB, zB, xC, zC);
             EcMul(ms, xA, zA, S5, S6, xA, zA, O);
         }
         else if (d <= (e << 2))
         {
             d -= e;
-            EcAddMove(ms, S1, S2, S5, S6, xB, zB, xA, zA, xC, zC);
+            EcAddMove(ms, S1, S2, S5, S6, S7, S8, xB, zB, xA, zA, xC, zC);
             Rot(xB, S1, xC);
             Rot(zB, S2, zC);
         }
         else if (!((d + e) & 1))
         {
             d = (d - e) >> 1;
-            EcAddMove(ms, xB, zB, S5, S6, xB, zB, xA, zA, xC, zC);
+            EcAddMove(ms, xB, zB, S5, S6, S7, S8, xB, zB, xA, zA, xC, zC);
             EcMul(ms, xA, zA, S5, S6, xA, zA, O);
         }
         else if (!(d & 1))
         {
             d >>= 1;
-            EcAddMove(ms, xC, zC, S5, S6, xC, zC, xA, zA, xB, zB);
+            EcAddMove(ms, xC, zC, S5, S6, S7, S8, xC, zC, xA, zA, xB, zB);
             EcMul(ms, xA, zA, S5, S6, xA, zA, O);
         }
         else if (!(d % 3))
         {
             d = d / 3 - e;
             EcMul(ms, S1, S2, S5, S6, xA, zA, O);
-            EcAddMove(ms, S3, S4, S5, S6, xA, zA, xB, zB, xC, zC);
+            EcAddMove(ms, S3, S4, S5, S6, S7, S8, xA, zA, xB, zB, xC, zC);
             EcAdd(ms, xA, zA, S5, S6, S7, S8, S1, S2, xA, zA, xA, zA);
-            EcAddMove(ms, S1, S2, S5, S6, S1, S2, S3, S4, xC, zC);
+            EcAddMove(ms, S1, S2, S5, S6, S7, S8, S1, S2, S3, S4, xC, zC);
             Rot(xC, xB, S1);
             Rot(zC, zB, S2);
         }
         else if (!((d + e) % 3))
         {
             d = (d - (e << 1)) / 3;
-            EcAddMove(ms, S1, S2, S5, S6, xA, zA, xB, zB, xC, zC);
+            EcAddMove(ms, S1, S2, S5, S6, S7, S8, xA, zA, xB, zB, xC, zC);
             EcAdd(ms, xB, zB, S5, S6, S7, S8, S1, S2, xA, zA, xB, zB);
             EcMul(ms, S1, S2, S5, S6, xA, zA, O);
             EcAdd(ms, xA, zA, S5, S6, S7, S8, xA, zA, S1, S2, xA, zA);
@@ -1266,8 +1271,8 @@ static void EcPrac(const MontgomerySystem& ms, U32 i, Mont& S1, Mont& S2, Mont& 
         else if (!((d - e) % 3))
         {
             d = (d - e) / 3;
-            EcAddMove(ms, S1, S2, S5, S6, xA, zA, xB, zB, xC, zC);
-            EcAddMove(ms, xC, zC, S5, S6, xC, zC, xA, zA, xB, zB);
+            EcAddMove(ms, S1, S2, S5, S6, S7, S8, xA, zA, xB, zB, xC, zC);
+            EcAddMove(ms, xC, zC, S5, S6, S7, S8, xC, zC, xA, zA, xB, zB);
             Swap(xB, S1);
             Swap(zB, S2);
             EcMul(ms, S1, S2, S5, S6, xA, zA, O);
@@ -1277,11 +1282,11 @@ static void EcPrac(const MontgomerySystem& ms, U32 i, Mont& S1, Mont& S2, Mont& 
         {
             ASSERT(!(e & 1));
             e >>= 1;
-            EcAddMove(ms, xC, zC, S5, S6, xC, zC, xB, zB, xA, zA);
+            EcAddMove(ms, xC, zC, S5, S6, S7, S8, xC, zC, xB, zB, xA, zA);
             EcMul(ms, xB, zB, S5, S6, xB, zB, O);
         }
     }
-    EcAddMove(ms, x, z, S5, S6, xA, zA, xB, zB, xC, zC);
+    EcAddMove(ms, x, z, S5, S6, S7, S8, xA, zA, xB, zB, xC, zC);
     ASSERT(d == 1);
 }
 
