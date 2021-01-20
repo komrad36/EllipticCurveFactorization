@@ -707,7 +707,7 @@ static BpswResult BpswPrimalityTest(mpz_srcptr x)
         mpz_sub_ui(m, x, 1);
         if (mpz_cmp_ui(q, 1) != 0 && mpz_cmp(q, m) != 0)
         {
-            for (U64 i = 0; i < e; ++i)
+            for (U64 i = 0; i < e - 1; ++i)
             {
                 mpz_mul(q, q, q);
                 mpz_mod(q, q, x);
