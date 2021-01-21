@@ -8,8 +8,10 @@
 *******************************************************************/
 
 #include <algorithm>
+#include <atomic>
 #include <cmath>
 #include <immintrin.h>
+#include <thread>
 
 #include "factorize.h"
 
@@ -78,6 +80,7 @@ static constexpr bool kLastPrimeAdd2Div3 = (kLastSmallPrime + 2) % 3 == 0;
 static constexpr U32 kCheckGap1 = kLastPrimeAdd2Div3 ? 2 : 4;
 static constexpr U32 kCheckGap2 = kLastPrimeAdd2Div3 ? 4 : 2;
 static constexpr U32 kNextCheckVal = kLastSmallPrime + kCheckGap2;
+static constexpr U32 kMtThresh = 4;
 
 static constexpr inline void Swap(U32& a, U32& b)
 {
@@ -1422,7 +1425,7 @@ static constexpr U64 Precomp357(U32 a, U32 b)
     return ret;
 }
 
-static void Ecm(mpz_ptr ret, U32& curve, mpz_srcptr x)
+static void EcmInternal(mpz_ptr ret, std::atomic_bool& found, std::atomic<U32>& curve, mpz_srcptr x, bool checkMtThresh)
 {
     MONT_CREATE(O);
     MONT_CREATE(X);
@@ -1446,9 +1449,17 @@ static void Ecm(mpz_ptr ret, U32& curve, mpz_srcptr x)
 
     const MontgomerySystem ms(x);
 
-    for (;; ++curve)
+    for (U32 iCurve = 0;;)
     {
-        if (Lehmann(ret, x, curve))
+        if (found || (checkMtThresh && iCurve >= kMtThresh - 1))
+        {
+            mpz_set_ui(ret, 0);
+            return;
+        }
+
+        iCurve = curve.fetch_add(1);
+
+        if (Lehmann(ret, x, iCurve))
             return;
 
 #define MAKE_PRECOMP(p)                                   \
@@ -1470,21 +1481,21 @@ static void Ecm(mpz_ptr ret, U32& curve, mpz_srcptr x)
         const U64* precomp357_P;
 
         U32 B1, B2, BP;
-        if (curve < 26)
+        if (iCurve < 26)
         {
             B1 = 2000;
             B2 = 200000;
             BP = 45;
             precomp357_P = precomp357_49;
         }
-        else if (curve < 326)
+        else if (iCurve < 326)
         {
             B1 = 50000;
             B2 = 5000000;
             BP = 224;
             precomp357_P = precomp357_229;
         }
-        else if (curve < 2000)
+        else if (iCurve < 2000)
         {
             B1 = 1000000;
             B2 = 100000000;
@@ -1500,7 +1511,7 @@ static void Ecm(mpz_ptr ret, U32& curve, mpz_srcptr x)
         }
 
         {
-            mpz_set_ui(S1.m_x, (U64)curve + 1);
+            mpz_set_ui(S1.m_x, (U64)iCurve + 1);
             mpz_mul(S2.m_x, S1.m_x, S1.m_x);
             mpz_mul_ui(S2.m_x, S2.m_x, 3);
             mpz_sub_ui(S2.m_x, S2.m_x, 1);
@@ -1854,8 +1865,18 @@ static void Ecm(mpz_ptr ret, U32& curve, mpz_srcptr x)
         }
         // end step 2 of 2
 
-        // on to next curve...
+        // on to next iCurve...
         label_next_curve:;
+    }
+}
+
+static void EcmWorker(mpz_ptr ret, std::atomic_bool& found, std::atomic<U32>& curve, mpz_srcptr x, bool checkMtThresh)
+{
+    EcmInternal(ret, found, curve, x, checkMtThresh);
+    if (mpz_cmp_ui(ret, 0) != 0)
+    {
+        found = true;
+        ASSERT(mpz_cmp_ui(ret, 1) != 0 && mpz_cmp(ret, x) != 0);
     }
 }
 
@@ -1909,6 +1930,55 @@ label_iter:;
     return ret;
 }
 
+static void Ecm(std::vector<FactorInfo>& v, U32 numThreads, std::atomic<U32>& curve, mpz_srcptr x)
+{
+    constexpr U32 kMaxThreads = 32;
+
+    mpz_t res[kMaxThreads];
+
+    if (numThreads == 0)
+        numThreads = std::thread::hardware_concurrency();
+    if (numThreads > kMaxThreads)
+        numThreads = kMaxThreads;
+
+    std::atomic_bool found = false;
+
+    if (numThreads > 1)
+    {
+        if (curve < kMtThresh)
+        {
+            mpz_init(res[0]);
+            EcmWorker(res[0], found, curve, x, true);
+            if (found)
+                RecordFactor(v, res[0]);
+            mpz_clear(res[0]);
+            if (found)
+                return;
+        }
+
+        std::thread threads[kMaxThreads];
+        for (U32 i = 0; i < numThreads; ++i)
+            mpz_init(res[i]);
+        for (U32 i = 0; i < numThreads; ++i)
+            threads[i] = std::thread(EcmWorker, res[i], std::ref(found), std::ref(curve), x, false);
+        for (U32 i = 0; i < numThreads; ++i)
+            threads[i].join();
+        for (U32 i = 0; i < numThreads; ++i)
+            if (mpz_cmp_ui(res[i], 0) != 0)
+                RecordFactor(v, res[i]);
+        for (U32 i = 0; i < numThreads; ++i)
+            mpz_clear(res[i]);
+    }
+    else
+    {
+        mpz_init(res[0]);
+        EcmWorker(res[0], found, curve, x, false);
+        if (found)
+            RecordFactor(v, res[0]);
+        mpz_clear(res[0]);
+    }
+}
+
 static bool PM1(std::vector<FactorInfo>& v, mpz_srcptr x, mpz_srcptr b, U64 e, I32 ofs)
 {
     MPZ_CREATE(t);
@@ -1956,7 +2026,7 @@ static bool PM1(std::vector<FactorInfo>& v, mpz_srcptr x, mpz_srcptr b, U64 e, I
     return updated;
 }
 
-std::vector<FactorInfo> Factorize(mpz_srcptr n)
+std::vector<FactorInfo> Factorize(mpz_srcptr n, U32 numThreads /*= 0*/)
 {
     MPZ_CREATE(x);
     MPZ_CREATE(b);
@@ -1991,7 +2061,7 @@ std::vector<FactorInfo> Factorize(mpz_srcptr n)
     std::vector<FactorInfo> v;
     v.emplace_back(x, 1);
 
-    U32 curve = 1;
+    std::atomic<U32> curve = 1;
 
 label_loop_restart:;
     for (U64 i = 0; i < v.size(); ++i)
@@ -2049,11 +2119,11 @@ label_loop_restart:;
         }
 
         // Lehmann/ECM
-        Ecm(b, curve, info.m_factor);
-        ASSERT(mpz_cmp_ui(b, 1) != 0 && mpz_cmp(b, info.m_factor) != 0);
-        const bool updated = RecordFactor(v, b);
-        ASSERT(updated);
-        goto label_loop_restart;
+        {
+            mpz_set(c, info.m_factor);
+            Ecm(v, numThreads, curve, c);
+            goto label_loop_restart;
+        }
     }
 
     ASSERT(v.empty());
