@@ -118,6 +118,7 @@ static inline void InvModChecked(mpz_ptr ret, mpz_srcptr x, mpz_srcptr mod)
     ASSERT(mpz_cmp_ui(mod, 0) != 0);
     const bool hasInverse = mpz_invert(ret, x, mod);
     ASSERT(hasInverse);
+    static_cast<void>(hasInverse);
 }
 
 static inline void mpz_add_si(mpz_ptr r, mpz_srcptr a, I64 b)
@@ -667,9 +668,9 @@ static bool Aurifeuille(std::vector<FactorInfo>& v, mpz_srcptr b, U64 e, I32 ofs
                 mpz_pow_ui(x, b, (r + 1) >> 1);
                 mpz_mul(D, D, x);
                 mpz_add(x, C, D);
-                mpz_sub(x, C, D);
                 if (RecordFactor(v, x))
                     updated = true;
+                mpz_sub(x, C, D);
                 if (RecordFactor(v, x))
                     updated = true;
             }
@@ -1865,7 +1866,7 @@ static void EcmInternal(mpz_ptr ret, std::atomic_bool& found, std::atomic<U32>& 
         }
         // end step 2 of 2
 
-        // on to next iCurve...
+        // on to next curve...
         label_next_curve:;
     }
 }
