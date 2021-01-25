@@ -1,6 +1,8 @@
 # EllipticCurveFactorization
 Fast, single-file, MIT-licensed large integer factorization using ECM combined with other techniques.
 
+Absolutely demolishes Flint and other ECM libraries in performance (though if you need to factor HUGE numbers, better, more complicated techniques than ECM exist).
+
 NO dependencies at all except GNU MP (a.k.a GMP, a.k.a. MPIR on Windows), the standard BigInteger library.
 
 Linux/Windows both supported - libgmp on Linux, mpir.lib on Windows.
