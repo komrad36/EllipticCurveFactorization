@@ -437,9 +437,7 @@ static void RecordPrime(std::vector<FactorInfo>& ret, std::vector<FactorInfo>& v
 
     label_found:;
 
-    if (i != v.size() - 1)
-        v[i] = v.back();
-    v.pop_back();
+    v.erase(v.begin() + i);
 }
 
 #define PROCESS_EULER_TOTIENT(p)                        \
