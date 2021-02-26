@@ -177,8 +177,8 @@ public:
         mpz_mul(m_scratch, m_scratch, m_scratch);
         mpz_mod(m_r2, m_scratch, n);
         REDC(m_r, m_r2);
-        mpz_mul(m_scratch, m_r2, m_r2);
-        REDC(m_r3, m_scratch);
+        mpz_mul(m_r3, m_r2, m_r2);
+        REDC(m_r3, m_r3);
     }
 
     ~MontgomerySystem()
@@ -1116,7 +1116,7 @@ static void EcPrac(const MontgomerySystem& ms, U32 i, Mont& S1, Mont& S2, Mont& 
         for (const double s : v)
         {
             constexpr U32 kAddCost = 6;
-            constexpr U32 kDupCost = 5;
+            constexpr U32 kMulCost = 5;
 
             const U32 r = (U32)(i / s + 0.5);
             U32 c;
@@ -1128,7 +1128,7 @@ static void EcPrac(const MontgomerySystem& ms, U32 i, Mont& S1, Mont& S2, Mont& 
             {
                 U32 d = i - r;
                 U32 e = (r << 1) - i;
-                c = kDupCost + kAddCost;
+                c = kMulCost + kAddCost;
                 while (d != e)
                 {
                     if (d < e)
@@ -1143,7 +1143,7 @@ static void EcPrac(const MontgomerySystem& ms, U32 i, Mont& S1, Mont& S2, Mont& 
                     else if ((d << 2) <= 5 * e && !((d - e) % 6))
                     {
                         d = (d - e) >> 1;
-                        c += kAddCost + kDupCost;
+                        c += kAddCost + kMulCost;
                     }
                     else if (d <= (e << 2))
                     {
@@ -1153,33 +1153,33 @@ static void EcPrac(const MontgomerySystem& ms, U32 i, Mont& S1, Mont& S2, Mont& 
                     else if (!((d + e) & 1))
                     {
                         d = (d - e) >> 1;
-                        c += kAddCost + kDupCost;
+                        c += kAddCost + kMulCost;
                     }
                     else if (!(d & 1))
                     {
                         d >>= 1;
-                        c += kAddCost + kDupCost;
+                        c += kAddCost + kMulCost;
                     }
                     else if (!(d % 3))
                     {
                         d = d / 3 - e;
-                        c += 3 * kAddCost + kDupCost;
+                        c += 3 * kAddCost + kMulCost;
                     }
                     else if (!((d + e) % 3))
                     {
                         d = (d - (e << 1)) / 3;
-                        c += 3 * kAddCost + kDupCost;
+                        c += 3 * kAddCost + kMulCost;
                     }
                     else if (!((d - e) % 3))
                     {
                         d = (d - e) / 3;
-                        c += 3 * kAddCost + kDupCost;
+                        c += 3 * kAddCost + kMulCost;
                     }
                     else
                     {
                         ASSERT(!(e & 1));
                         e >>= 1;
-                        c += kAddCost + kDupCost;
+                        c += kAddCost + kMulCost;
                     }
                 }
                 ASSERT(d == 1);
@@ -1937,6 +1937,8 @@ static void Ecm(std::vector<FactorInfo>& v, U32 numThreads, std::atomic<U32>& cu
 
     if (numThreads == 0)
         numThreads = std::thread::hardware_concurrency();
+    if (numThreads == 0)
+        numThreads = 1;
     if (numThreads > kMaxThreads)
         numThreads = kMaxThreads;
 
