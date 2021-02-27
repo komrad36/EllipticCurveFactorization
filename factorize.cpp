@@ -222,6 +222,16 @@ public:
         return true;
     }
 
+    void InvModChecked(Mont& r, const Mont& x) const
+    {
+        const bool valid = mpz_invert(r.m_x, x.m_x, m_n);
+        ASSERT(valid);
+        static_cast<void>(valid);
+
+        mpz_mul(r.m_x, r.m_x, m_r3);
+        REDC(r.m_x, r.m_x);
+    }
+
     void Sqr(Mont& r, const Mont& x) const
     {
         Mul(r, x, x);
@@ -232,9 +242,10 @@ public:
         mpz_gcd(r, x.m_x, m_n);
     }
 
-    void ToMontgomery(Mont& r, mpz_srcptr x) const
+    void ToMontgomery(Mont& r, U64 x) const
     {
-        mpz_mod(r.m_x, x, m_n);
+        mpz_set_ui(r.m_x, x);
+        mpz_mod(r.m_x, r.m_x, m_n);
         mpz_mul(r.m_x, r.m_x, m_r2);
         REDC(r.m_x, r.m_x);
     }
@@ -1510,45 +1521,42 @@ static void EcmInternal(mpz_ptr ret, std::atomic_bool& found, std::atomic<U32>& 
         }
 
         {
-            mpz_set_ui(S1.m_x, (U64)iCurve + 1);
-            mpz_mul(S2.m_x, S1.m_x, S1.m_x);
-            mpz_mul_ui(S2.m_x, S2.m_x, 3);
-            mpz_sub_ui(S2.m_x, S2.m_x, 1);
-            InvModChecked(S2.m_x, S2.m_x, x);
-            mpz_add(S1.m_x, S1.m_x, S1.m_x);
-            mpz_mul(S1.m_x, S1.m_x, S2.m_x);
-            mpz_mod(S1.m_x, S1.m_x, x);
-            mpz_mul(S2.m_x, S1.m_x, S1.m_x);
-            mpz_mod(S2.m_x, S2.m_x, x);
-            mpz_sub_ui(S3.m_x, S2.m_x, 1);
-            mpz_mul(S3.m_x, S3.m_x, S1.m_x);
-            mpz_mul_ui(S4.m_x, S2.m_x, 9);
-            mpz_sub_ui(S4.m_x, S4.m_x, 1);
-            mpz_mul(S3.m_x, S3.m_x, S4.m_x);
-            if (mpz_divisible_p(S3.m_x, x))
+            ms.MakeOne(S1);
+            ms.Add(S2, S1, S1);
+            ms.Add(S2, S2, S1);
+            ms.ToMontgomery(S3, U64(iCurve) + 1);
+            ms.Sqr(S4, S3);
+            ms.Mul(S4, S4, S2);
+            ms.Sub(S4, S4, S1);
+            ms.InvModChecked(S4, S4);
+            ms.Add(S3, S3, S3);
+            ms.Mul(S3, S3, S4);
+            ms.Sqr(S4, S3);
+            ms.Sub(S5, S4, S1);
+            ms.Mul(S5, S5, S3);
+            ms.Mul(S6, S4, S2);
+            ms.Add(X, S6, S1);
+            ms.Mul(S6, S6, S2);
+            ms.Sub(S6, S6, S1);
+            ms.Mul(S5, S5, S6);
+            if (ms.IsZero(S5))
                 continue;
-            mpz_mul(S4.m_x, S2.m_x, S2.m_x);
-            mpz_mod(S4.m_x, S4.m_x, x);
-            mpz_mul_si(S4.m_x, S4.m_x, -3);
-            mpz_mul_ui(S3.m_x, S2.m_x, 6);
-            mpz_sub(S4.m_x, S4.m_x, S3.m_x);
-            mpz_add_ui(S4.m_x, S4.m_x, 1);
-            mpz_mul(S3.m_x, S2.m_x, S1.m_x);
-            mpz_mod(S3.m_x, S3.m_x, x);
-            mpz_mul_2exp(S3.m_x, S3.m_x, 2);
-            InvModChecked(S3.m_x, S3.m_x, x);
-            mpz_mul(S4.m_x, S4.m_x, S3.m_x);
-            mpz_mod(S4.m_x, S4.m_x, x);
-            mpz_add_ui(S4.m_x, S4.m_x, 2);
-            mpz_set_ui(S3.m_x, 4);
-            InvModChecked(S3.m_x, S3.m_x, x);
-            mpz_mul(S4.m_x, S4.m_x, S3.m_x);
-            ms.ToMontgomery(O, S4.m_x);
-            mpz_mul_ui(S2.m_x, S2.m_x, 3);
-            mpz_add_ui(S2.m_x, S2.m_x, 1);
-            ms.ToMontgomery(X, S2.m_x);
-            mpz_mul_2exp(S1.m_x, S1.m_x, 2);
-            ms.ToMontgomery(Z, S1.m_x);
+            ms.Add(Z, S3, S3);
+            ms.Add(Z, Z, Z);
+            ms.Mul(S3, S3, S4);
+            ms.Add(S3, S3, S3);
+            ms.Add(S3, S3, S3);
+            ms.InvModChecked(S3, S3);
+            ms.Add(S6, S1, S1);
+            ms.Add(S5, S4, S6);
+            ms.Mul(S5, S5, S4);
+            ms.Mul(S2, S5, S2);
+            ms.Sub(S2, S1, S2);
+            ms.Mul(S2, S3, S2);
+            ms.Add(S3, S6, S6);
+            ms.InvModChecked(S3, S3);
+            ms.Add(S2, S2, S6);
+            ms.Mul(O, S2, S3);
         }
 
         U64 sieve[kNumSieveBlocks];
