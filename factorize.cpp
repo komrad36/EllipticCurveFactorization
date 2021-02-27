@@ -22,7 +22,7 @@ using U64 = uint64_t;
 
 static constexpr U32 kSmallPrimes[] =
 {
-    2,3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,193,197,199,211,223,227,229,233,239,241,251,257,263,269,271,277,281,283,
+    3,5,7,11,13,17,19,23,29,31,37,41,43,47,53,59,61,67,71,73,79,83,89,97,101,103,107,109,113,127,131,137,139,149,151,157,163,167,173,179,181,191,193,197,199,211,223,227,229,233,239,241,251,257,263,269,271,277,281,283,
     293,307,311,313,317,331,337,347,349,353,359,367,373,379,383,389,397,401,409,419,421,431,433,439,443,449,457,461,463,467,479,487,491,499,503,509,521,523,541,547,557,563,569,571,577,587,593,599,601,607,613,617,619,631,
     641,643,647,653,659,661,673,677,683,691,701,709,719,727,733,739,743,751,757,761,769,773,787,797,809,811,821,823,827,829,839,853,857,859,863,877,881,883,887,907,911,919,929,937,941,947,953,967,971,977,983,991,997,1009,
     1013,1019,1021,1031,1033,1039,1049,1051,1061,1063,1069,1087,1091,1093,1097,1103,1109,1117,1123,1129,1151,1153,1163,1171,1181,1187,1193,1201,1213,1217,1223,1229,1231,1237,1249,1259,1277,1279,1283,1289,1291,1297,1301,
@@ -364,7 +364,7 @@ static bool TrialDiv(std::vector<FactorInfo>& ret, mpz_ptr x)
     MPZ_CREATE(P);
 
     // use small primes
-    for (U32 i = 1; i < ARRAY_COUNT(kSmallPrimes); ++i)
+    for (U32 i = 0; i < ARRAY_COUNT(kSmallPrimes); ++i)
     {
         const U32 p = kSmallPrimes[i];
         PROCESS_FACTOR();
@@ -1014,7 +1014,7 @@ static bool Lehmann(mpz_ptr ret, mpz_srcptr x, U32 k)
     U32 deltas[kNumLehmannPrimes];
     for (U32 i = 0; i < kNumLehmannPrimes; ++i)
     {
-        const U32 p = kSmallPrimes[i + 1];
+        const U32 p = kSmallPrimes[i];
         mpz_mod_ui(c, d, p);
         v[i] = ToU32(c);
         mpz_mod_ui(c, a, p);
@@ -1042,8 +1042,8 @@ static bool Lehmann(mpz_ptr ret, mpz_srcptr x, U32 k)
 
         for (U32 j = 0; j < kNumLehmannPrimes; ++j)
         {
-            v[j] = (v[j] + deltas[j]) % kSmallPrimes[j + 1];
-            deltas[j] = (deltas[j] + ((m * m) << 1)) % kSmallPrimes[j + 1];
+            v[j] = (v[j] + deltas[j]) % kSmallPrimes[j];
+            deltas[j] = (deltas[j] + ((m * m) << 1)) % kSmallPrimes[j];
         }
     }
 
@@ -1396,7 +1396,7 @@ static void MakeSieve(U64* pSieve, const U64* pPrecomp357, U32 iStart)
     for (U32 i = 0; i < kSieveUnroll * kSieveSize; i += kSieveSize)
         CopyBits(pSieve, i, pPrecomp357, 0, kSieveSize);
 
-    U32 iPrime = 4;
+    U32 iPrime = 3;
     U32 P = 11;
     do
     {
@@ -1592,7 +1592,7 @@ static void EcmInternal(mpz_ptr ret, std::atomic_bool& found, std::atomic<U32>& 
 
                 U32 P;
                 {
-                    U32 iSieve = 1;
+                    U32 iSieve = 0;
                     do
                     {
                         P = kSmallPrimes[iSieve++];
