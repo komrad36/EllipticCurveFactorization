@@ -2041,8 +2041,6 @@ std::vector<FactorInfo> Factorize(mpz_srcptr n, U32 numThreads /*= 0*/)
     MPZ_CREATE(b);
     MPZ_CREATE(c);
 
-    ASSERT(mpz_cmp_ui(n, 0) > 0);
-
     std::vector<FactorInfo> ret;
     if (mpz_cmp_ui(n, 1) <= 0)
         return ret;
