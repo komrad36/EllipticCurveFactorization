@@ -113,14 +113,6 @@ static inline U64 ToU64(mpz_srcptr x)
     return mpz_get_ui(x);
 }
 
-static inline void InvModChecked(mpz_ptr ret, mpz_srcptr x, mpz_srcptr mod)
-{
-    ASSERT(mpz_cmp_ui(mod, 0) != 0);
-    const bool hasInverse = mpz_invert(ret, x, mod);
-    ASSERT(hasInverse);
-    static_cast<void>(hasInverse);
-}
-
 static inline void mpz_add_si(mpz_ptr r, mpz_srcptr a, I64 b)
 {
     if (b >= 0)
@@ -564,18 +556,18 @@ static U32 Gcd(U32 a, U32 b)
     b >>= zb;
 
     const U32 m = za < zb ? za : zb;
+
     while (a != b)
     {
-        if (a > b)
+        const U32 t = a;
+        if (b < a)
         {
-            a -= b;
-            a >>= CountTrailingZeros(a);
+            a = b;
+            b = t;
         }
-        else
-        {
-            b -= a;
-            b >>= CountTrailingZeros(b);
-        }
+
+        b -= a;
+        b >>= CountTrailingZeros(b);
     }
 
     return a << m;
