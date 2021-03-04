@@ -1293,92 +1293,44 @@ static void EcPrac(const MontgomerySystem& ms, U32 i, Mont& S1, Mont& S2, Mont& 
     ASSERT(d == 1);
 }
 
-static inline constexpr U64 BuildBitMask(U64 i0, U64 i1)
-{
-    return (~0ULL << (i0 & 63)) & (~0ULL >> ((i1 ^ 63) & 63));
-}
-
-static void CopyBits(U64* vDst, U64 iDst, const U64* vSrc, U64 iSrc, U64 numBits)
+static inline void CopyBits(U64* __restrict pDst, U64 iDst, const U64* __restrict pSrc, U64 numBits)
 {
     if (numBits == 0)
         return;
 
-    const U64 iDst0 = iDst;
-    const U64 iDst1 = iDst + numBits - 1;
+    pDst += iDst >> 6;
+    iDst &= 63;
 
-    const U64 iSrc0 = iSrc;
-    const U64 iSrc1 = iSrc + numBits - 1;
+    const U64 numBlocks = numBits >> 6;
+    numBits &= 63;
 
-    const U64 iBlockSrc0 = iSrc0 >> 6;
-    const U64 iBlockSrc1 = iSrc1 >> 6;
-
-    const U64 iBlockDst0 = iDst0 >> 6;
-    const U64 iBlockDst1 = iDst1 >> 6;
-
-    const U64 ofsRight = (iSrc0 - iDst0) & 63;
-    const U64 ofsLeft = (iDst0 - iSrc0) & 63;
-
-    if (iBlockDst0 == iBlockDst1)
+    if (iDst == 0)
     {
-        // special case: single dest block
-
-        const U64 blockSrc = (vSrc[iBlockSrc0] >> ofsRight) | (vSrc[iBlockSrc1] << ofsLeft);
-        const U64 blockDst = vDst[iBlockDst0];
-        const U64 mask = BuildBitMask(iDst0 & 63, iDst1 & 63);
-        vDst[iBlockDst0] = (blockDst & ~mask) | (blockSrc & mask);
-    }
-    else if (ofsRight == 0)
-    {
-        // src and dest have same alignment
-
-        // handle first dest block
-        {
-            const U64 blockSrc = vSrc[iBlockSrc0];
-            const U64 blockDst = vDst[iBlockDst0];
-            const U64 mask = BuildBitMask(iDst0 & 63, 63);
-            vDst[iBlockDst0] = (blockDst & ~mask) | (blockSrc & mask);
-        }
-
-        // handle middle (whole) dest blocks
-        for (U64 iBlockDst = iBlockDst0 + 1, iBlockSrc = iBlockSrc0 + 1; iBlockDst < iBlockDst1; ++iBlockDst, ++iBlockSrc)
-        {
-            vDst[iBlockDst] = vSrc[iBlockSrc];
-        }
-
-        // handle final dest block
-        {
-            const U64 blockSrc = vSrc[iBlockSrc1];
-            const U64 blockDst = vDst[iBlockDst1];
-            const U64 mask = BuildBitMask(0, iDst1 & 63);
-            vDst[iBlockDst1] = (blockDst & ~mask) | (blockSrc & mask);
-        }
+        // src and dst aligned
+        for (U64 iBlock = 0; iBlock < numBlocks + bool(numBits); ++iBlock)
+            pDst[iBlock] = pSrc[iBlock];
     }
     else
     {
-        U64 iBlockSrc = iBlockSrc0 + ((iSrc0 & 63) > (iDst0 & 63));
+        // src and dst not aligned
 
-        // handle first dest block
+        // first block
         {
-            const U64 blockSrc = (vSrc[iBlockSrc0] >> ofsRight) | (vSrc[iBlockSrc] << ofsLeft);
-            const U64 blockDst = vDst[iBlockDst0];
-            const U64 mask = BuildBitMask(iDst0 & 63, 63);
-            vDst[iBlockDst0] = (blockDst & ~mask) | (blockSrc & mask);
+            const U64 m = (1ULL << iDst) - 1ULL;
+            *pDst = (*pDst & m) | (*pSrc << iDst);
+            ++pDst;
         }
 
-        // handle middle (whole) dest blocks
-        for (U64 iBlockDst = iBlockDst0 + 1; iBlockDst < iBlockDst1; ++iBlockDst, ++iBlockSrc)
-        {
-            vDst[iBlockDst] = (vSrc[iBlockSrc] >> ofsRight) | (vSrc[iBlockSrc + 1] << ofsLeft);
-        }
-
-        // handle final dest block
-        {
-            const U64 blockSrc = (vSrc[iBlockSrc] >> ofsRight) | (vSrc[iBlockSrc1] << ofsLeft);
-            const U64 blockDst = vDst[iBlockDst1];
-            const U64 mask = BuildBitMask(0, iDst1 & 63);
-            vDst[iBlockDst1] = (blockDst & ~mask) | (blockSrc & mask);
-        }
+        // remaining blocks
+        const U64 remBlocks = numBlocks + (iDst + numBits > 64);
+        for (U64 iBlock = 0; iBlock < remBlocks; ++iBlock)
+            pDst[iBlock] = (pSrc[iBlock] >> (64 - iDst)) | (pSrc[iBlock + 1] << iDst);
     }
+}
+
+static inline constexpr U64 BuildBitMask(U64 i0, U64 i1)
+{
+    return (~0ULL << (i0 & 63)) & (~0ULL >> ((i1 ^ 63) & 63));
 }
 
 static void MakeSieve(U64* pSieve, const U64* pPrecomp357, U32 iStart)
@@ -1386,7 +1338,7 @@ static void MakeSieve(U64* pSieve, const U64* pPrecomp357, U32 iStart)
     ASSERT(iStart & 1);
 
     for (U32 i = 0; i < kSieveUnroll * kSieveSize; i += kSieveSize)
-        CopyBits(pSieve, i, pPrecomp357, 0, kSieveSize);
+        CopyBits(pSieve, i, pPrecomp357, kSieveSize);
 
     U32 iPrime = 3;
     U32 P = 11;
