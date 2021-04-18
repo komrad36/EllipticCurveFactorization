@@ -5,13 +5,15 @@ Absolutely demolishes Flint, GMP-ECM, and other ECM-based factorization librarie
 
 NO dependencies at all except GNU MP (a.k.a GMP, a.k.a. MPIR on Windows), the standard Big Integer library.
 
-Linux/Windows both supported - libgmp on Linux, mpir.lib on Windows.
+Linux/Windows both supported - `libgmp` on Linux, `mpir.lib` on Windows.
 
-Be sure to compile GMP/MPIR configured specific to your architecture. The generic version is often more than 2.5x slower.
+Be sure to compile GMP/MPIR configured specific to your architecture. The generic version is often more than `2.5x` slower.
 
 Simple call:
 
-`std::vector<FactorInfo> Factorize(mpz_srcptr n);`
+```cpp
+std::vector<FactorInfo> Factorize(mpz_srcptr n);
+```
 
 You are returned a vector of `FactorInfo` structs, each containing an `mpz_t` (the factor) and a `uint64_t` (the exponent).
 
@@ -19,6 +21,10 @@ Returning from the function transfers ownership of the `mpz_t`s within. As the c
 
 Multi-threaded by default, with automatic selection of thread count. You can override with a custom thread count, including disabling MT by requesting just 1 thread, using a second argument:
 
-`std::vector<FactorInfo> Factorize(mpz_srcptr n, uint32_t numThreads = 0);`
+```cpp
+std::vector<FactorInfo> Factorize(mpz_srcptr n, uint32_t numThreads = 0);
+```
 
-0 is the default and means automatic selection of thread count.
+`0` is the default and means automatic selection of thread count.
+
+For machine-word-sized (32- or 64-bit) integers, see https://github.com/komrad36/Factorization-Primality.
