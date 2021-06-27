@@ -99,12 +99,12 @@ static constexpr inline void Swap(I32& a, I32& b)
 static inline U32 ToU32(mpz_srcptr x)
 {
     ASSERT(mpz_fits_uint_p(x));
-    return (U32)mpz_get_ui(x);
+    return U32(mpz_get_ui(x));
 }
 
 static bool FitsU64(mpz_srcptr x)
 {
-    __GMPZ_FITS_UTYPE_P(x, ~0ULL);
+    __GMPZ_FITS_UTYPE_P(x, ~0ULL)
 }
 
 static inline U64 ToU64(mpz_srcptr x)
@@ -116,9 +116,9 @@ static inline U64 ToU64(mpz_srcptr x)
 static inline void mpz_add_si(mpz_ptr r, mpz_srcptr a, I64 b)
 {
     if (b >= 0)
-        mpz_add_ui(r, a, (U64)b);
+        mpz_add_ui(r, a, U64(b));
     else
-        mpz_sub_ui(r, a, ~((U64)b - 1));
+        mpz_sub_ui(r, a, ~(U64(b) - 1));
 }
 
 static inline U64 CountTrailingZeros(mpz_srcptr x)
@@ -133,7 +133,7 @@ static inline double Log2(mpz_srcptr x)
     // log2(x) = log2(d) + e
     signed long e;
     const double d = mpz_get_d_2exp(&e, x);
-    return ::log2(d) + (double)e;
+    return ::log2(d) + double(e);
 }
 
 struct Mont
@@ -440,7 +440,7 @@ static void RecordPrime(std::vector<FactorInfo>& ret, std::vector<FactorInfo>& v
 
     label_found:;
 
-    v.erase(v.begin() + i);
+    v.erase(v.begin() + I64(i));
 }
 
 #define PROCESS_EULER_TOTIENT(p)                        \
@@ -535,12 +535,12 @@ static constexpr I32 JacobiSymbol(I32 n, I32 k)
 
 static U32 CountTrailingZeros(U32 x)
 {
-    return (U32)_tzcnt_u32(x);
+    return U32(_tzcnt_u32(x));
 }
 
 static U32 CountTrailingZeros(U64 x)
 {
-    return (U32)_tzcnt_u64(x);
+    return U32(_tzcnt_u64(x));
 }
 
 static U32 Gcd(U32 a, U32 b)
@@ -592,7 +592,7 @@ static bool Aurifeuille(std::vector<FactorInfo>& v, mpz_srcptr b, U64 e, I32 ofs
     if (!(e & 1) && ofs == -1)
     {
         e >>= CountTrailingZeros(e);
-        ofs = (I32)(n & 3) - 2;
+        ofs = I32(n & 3) - 2;
     }
 
     if ((e % n) || !((e / n) & 1) || (((n & 3) == 1 || ofs != 1) && ((n & 3) != 1 || ofs != -1)))
@@ -607,7 +607,7 @@ static bool Aurifeuille(std::vector<FactorInfo>& v, mpz_srcptr b, U64 e, I32 ofs
     coef[0] = 0;
 
     for (U32 k = 1; k - 1 <= d; k += 2)
-        coef[k] = JacobiSymbol((I32)n, (I32)k);
+        coef[k] = JacobiSymbol(I32(n), I32(k));
 
     for (U32 k = 2; k - 1 <= d; k += 2)
     {
@@ -616,7 +616,7 @@ static bool Aurifeuille(std::vector<FactorInfo>& v, mpz_srcptr b, U64 e, I32 ofs
         if (r == 0 || r == 4)
         {
             const U32 gcd = Gcd(k, n1);
-            coef[k] = (I64)Mobius(n1 / gcd) * (I64)EulerTotient(gcd);
+            coef[k] = I64(Mobius(n1 / gcd)) * I64(EulerTotient(gcd));
             if (r == 4)
                 coef[k] = -coef[k];
         }
@@ -737,8 +737,8 @@ static BpswResult BpswPrimalityTest(mpz_srcptr x)
         bool negD = false;
         for (;;)
         {
-            mpz_mod_ui(m, x, (U32)iD);
-            if (JacobiSymbol((I32)ToU32(m), iD) == -1)
+            mpz_mod_ui(m, x, U32(iD));
+            if (JacobiSymbol(I32(ToU32(m)), iD) == -1)
                 break;
             negD = !negD;
             iD += 2;
@@ -747,7 +747,7 @@ static BpswResult BpswPrimalityTest(mpz_srcptr x)
             iD = -iD;
     }
 
-    const I64 iQ = (1LL - (I64)iD) >> 2;
+    const I64 iQ = (1LL - I64(iD)) >> 2;
 
     mpz_set_si(D, iD);
     mpz_set_si(m, iQ);
@@ -923,7 +923,7 @@ static constexpr U64 PerfectSqrMask(U32 p)
 {
     U64 r = 1;
     for (U32 a = 1; a < p; ++a)
-        r |= (U64(JacobiSymbol((I32)a, (I32)p) == 1) << a);
+        r |= (U64(JacobiSymbol(I32(a), I32(p)) == 1) << a);
     return r;
 }
 
@@ -1113,7 +1113,7 @@ static void EcPrac(const MontgomerySystem& ms, U32 i, Mont& S1, Mont& S2, Mont& 
         1.3819660112501052,    // (3    - phi) / 1,
     };
 
-    U32 bestR = (U32)(i / v[0] + 0.5);
+    U32 bestR = U32(i / v[0] + 0.5);
     {
         U32 bestC = ~0U;
         for (const double s : v)
@@ -1121,7 +1121,7 @@ static void EcPrac(const MontgomerySystem& ms, U32 i, Mont& S1, Mont& S2, Mont& 
             constexpr U32 kAddCost = 6;
             constexpr U32 kMulCost = 5;
 
-            const U32 r = (U32)(i / s + 0.5);
+            const U32 r = U32(i / s + 0.5);
             U32 c;
             if (r >= i)
             {
@@ -1857,7 +1857,7 @@ label_iter:;
         const double l2e = log2 / e;
         if (l2e < 46.0)
         {
-            const U64 ib = (U64)(I64)::round(::exp2(l2e));
+            const U64 ib = U64(I64(::round(::exp2(l2e))));
             mpz_ui_pow_ui(p, ib, e);
             if (mpz_cmp(p, x) == 0)
             {
