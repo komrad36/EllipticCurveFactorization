@@ -1894,7 +1894,7 @@ static void Ecm(std::vector<FactorInfo>& v, U32 numThreads, std::atomic<U32>& cu
     if (numThreads > kMaxThreads)
         numThreads = kMaxThreads;
 
-    std::atomic_bool found = false;
+    std::atomic_bool found(false);
 
     if (numThreads > 1)
     {
@@ -2012,7 +2012,7 @@ std::vector<FactorInfo> Factorize(mpz_srcptr n, U32 numThreads /*= 0*/)
     std::vector<FactorInfo> v;
     v.emplace_back(x, 1);
 
-    std::atomic<U32> curve = 1;
+    std::atomic<U32> curve(1);
 
 label_loop_restart:;
     for (U64 i = 0; i < v.size(); ++i)
